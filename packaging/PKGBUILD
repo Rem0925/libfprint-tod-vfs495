@@ -1,0 +1,28 @@
+# Maintainer: Your Name <youremail@example.com>
+pkgname=vfs495-driver-git
+pkgver=0.6.0
+pkgrel=1
+pkgdesc="Native Linux driver for Validity VFS495 swipe fingerprint reader (138a:003f) for HP ProBook / EliteBook"
+arch=('x86_64')
+url="https://github.com/Rem0925/libfprint-tod-vfs495"
+license=('LGPL2.1')
+depends=('libfprint-tod' 'fprintd' 'openssl' 'glib2' 'gusb')
+makedepends=('git' 'meson' 'ninja' 'pkgconf' 'curl' 'python')
+source=("git+https://github.com/Rem0925/libfprint-tod-vfs495.git")
+md5sums=('SKIP')
+
+build() {
+    cd "$srcdir/vfs495-driver"
+    curl -sSL "https://ftp.hp.com/pub/softpaq/sp84501-85000/sp84530.tar" -o sp84530.tar
+    python3 recipe/build-commands.py sp84530.tar commands.bin
+    arch-meson driver build
+    ninja -C build
+}
+
+package() {
+    cd "$srcdir/vfs495-driver"
+    DESTDIR="$pkgdir" ninja -C build install
+    install -Dm644 commands.bin "$pkgdir/usr/lib/vfs495-driver/commands.bin"
+    install -Dm644 packaging/70-vfs495.rules "$pkgdir/usr/lib/udev/rules.d/70-vfs495.rules"
+    install -Dm644 packaging/vfs495.conf "$pkgdir/usr/lib/systemd/system/fprintd.service.d/vfs495.conf"
+}

@@ -1,0 +1,17 @@
+# Build directories
+build/
+subprojects/
+*.o
+*.so
+*.a
+*.tar
+*.tar.gz
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Local test outputs & logs
+*.log
+*.pgm
+*.raw
