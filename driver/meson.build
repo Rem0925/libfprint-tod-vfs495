@@ -70,7 +70,9 @@ unit = executable('vfs495-unit', 'tests/vfs495-unit.c', 'tests/vfs495-sim.c', 's
   include_directories: 'src',
   link_with: [assemble, protocol],
   dependencies: [glib, gio, libcrypto, m])
-test('unit', unit, protocol: 'tap', args: ['--tap'], timeout: 300)
+test('unit', unit, protocol: 'tap', args: ['--tap'],
+  env: ['VFS495_LINE_DISTANCE=8.0', 'VFS495_MIN_LAG=8'],
+  timeout: 300)
 
 # Regression tests. Their data (recordings, scans) is private and lives in the git-ignored
 # captures/ folder; tests without data are skipped. Update expectations after an intended

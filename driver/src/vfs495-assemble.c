@@ -14,11 +14,11 @@
 #define C0_LAST            79          /* inclusive: aux over main columns c0 .. c0 + 63 */
 #define MAX_LAG            65
 #define WINDOW             24          /* lines per lag-correlation window */
-#define DEFAULT_MIN_TRUSTED_LAG 8
+#define DEFAULT_MIN_TRUSTED_LAG 4
 #define MAX_TRUSTED_LAG    60          /* matches Validity OEM max search lag 0x41 */
 #define RUN_GAP            120         /* trusted readings closer than this are one swipe */
 #define CONF_MIN           0.30        /* solo usa anclajes de velocidad limpios para interpolar */
-#define DEFAULT_LINE_DISTANCE 8.0      /* aux-to-main distance in pixels, calibrated */
+#define DEFAULT_LINE_DISTANCE 3.8      /* aux-to-main distance in pixels, calibrated */
 #define STILL_LAG          20          /* a resting finger repeats the line this many earlier */
 #define STILL_THRESHOLD    0.8
 #define HIGHPASS_BOX       9
@@ -408,9 +408,8 @@ lag_for_offset (const LagJob *j, int c0, double *best, int *best_lag, double *m,
       best_lag[t - j->lo] = 0;
     }
 
-  /* En barridos normales/lentos (>= 600 líneas de contacto) es físicamente imposible
-   * que el lag real sea < 11; empezar allí evita el falso pico de la cresta adyacente. */
-  int start_tau = (j->hi - j->lo >= 600) ? CLAMP ((j->hi - j->lo) / 145, 8, 13) : 1;
+  /* Con D = 3.8 px, buscar desde tau = 3 cubre barridos rápidos y naturales sin enganchar ruido */
+  int start_tau = 3;
 
   for (int tau = start_tau; tau <= MAX_LAG; tau++)
     {
@@ -585,8 +584,8 @@ positions (const int *lag, const double *conf, const gboolean *still, int n, int
     }
 
   double med_lag = median (raw_lags, nraw);
-  double lo_lag = MAX ((double) min_lag, 0.35 * med_lag);
-  double hi_lag = MIN ((double) MAX_TRUSTED_LAG, 3.00 * med_lag);
+  double lo_lag = MAX ((double) min_lag, 0.40 * med_lag);
+  double hi_lag = MIN ((double) MAX_TRUSTED_LAG, 2.20 * med_lag);
 
   for (int t = lo; t < hi; t++)
     {

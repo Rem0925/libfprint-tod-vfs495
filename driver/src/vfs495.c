@@ -1143,7 +1143,6 @@ dev_open (FpImageDevice *dev)
   vfs495_random_set_deterministic (g_strcmp0 (g_getenv ("FP_DEVICE_EMULATION"), "1") == 0);
   g_clear_pointer (&self->diag, vfs495_diag_unref);
   self->diag = vfs495_diag_open ();
-  fpi_image_device_set_bz3_threshold (dev, 25);
   note (self, "open: driver %s%s", VFS495_VERSION, self->diag ? ", diagnostics on" : "");
   self->cmds = vfs495_commands_load (path ? path : COMMANDS_PATH, &error);
   if (!self->cmds)

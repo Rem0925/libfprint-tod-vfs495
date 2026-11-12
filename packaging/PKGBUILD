@@ -12,7 +12,7 @@ source=("git+https://github.com/Rem0925/libfprint-tod-vfs495.git")
 md5sums=('SKIP')
 
 build() {
-    cd "$srcdir/vfs495-driver"
+    cd "$srcdir/libfprint-tod-vfs495"
     curl -sSL "https://ftp.hp.com/pub/softpaq/sp84501-85000/sp84530.tar" -o sp84530.tar
     python3 recipe/build-commands.py sp84530.tar commands.bin
     arch-meson driver build
@@ -20,7 +20,7 @@ build() {
 }
 
 package() {
-    cd "$srcdir/vfs495-driver"
+    cd "$srcdir/libfprint-tod-vfs495"
     DESTDIR="$pkgdir" ninja -C build install
     install -Dm644 commands.bin "$pkgdir/usr/lib/vfs495-driver/commands.bin"
     install -Dm644 packaging/70-vfs495.rules "$pkgdir/usr/lib/udev/rules.d/70-vfs495.rules"

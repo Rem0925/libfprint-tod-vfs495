@@ -62,7 +62,6 @@ systemctl restart fprintd >/dev/null 2>&1 || :
 %{_prefix}/lib/vfs495-driver/commands.bin
 %{_udevrulesdir}/70-vfs495.rules
 %{_unitdir}/fprintd.service.d/vfs495.conf
-%{_udevrulesdir}/70-vfs495.rules
 
 %changelog
 * Wed Nov 11 2026 Developer <dev@example.com> - 0.6.0-1
