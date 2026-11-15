@@ -1143,6 +1143,7 @@ dev_open (FpImageDevice *dev)
   vfs495_random_set_deterministic (g_strcmp0 (g_getenv ("FP_DEVICE_EMULATION"), "1") == 0);
   g_clear_pointer (&self->diag, vfs495_diag_unref);
   self->diag = vfs495_diag_open ();
+  fpi_image_device_set_bz3_threshold (dev, 24);
   note (self, "open: driver %s%s", VFS495_VERSION, self->diag ? ", diagnostics on" : "");
   self->cmds = vfs495_commands_load (path ? path : COMMANDS_PATH, &error);
   if (!self->cmds)
@@ -1289,7 +1290,7 @@ fpi_device_vfs495_class_init (FpiDeviceVfs495Class *klass)
   img_class->deactivate = dev_deactivate;
   img_class->img_width = VFS495_MAIN_WIDTH;
   img_class->img_height = -1;
-  img_class->bz3_threshold = 25;
+  img_class->bz3_threshold = 24;
 }
 
 /* The driver's GType is registered statically and can never be unregistered, so the module

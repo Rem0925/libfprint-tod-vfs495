@@ -150,7 +150,7 @@ fi
 mkdir -p /etc/systemd/system/fprintd.service.d
 cat << 'EOF' > /etc/systemd/system/fprintd.service.d/vfs495.conf
 [Service]
-Environment="VFS495_LINE_DISTANCE=3.8"
+Environment="G_MESSAGES_DEBUG=libfprint-print fprintd libfprint-vfs495"
 EOF
 systemctl daemon-reload
 

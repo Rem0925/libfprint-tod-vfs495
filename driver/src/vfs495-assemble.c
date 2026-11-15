@@ -12,13 +12,13 @@
 #define AUX_WIDTH          64
 #define C0_FIRST           58
 #define C0_LAST            79          /* inclusive: aux over main columns c0 .. c0 + 63 */
-#define MAX_LAG            65
+#define MAX_LAG            250
 #define WINDOW             24          /* lines per lag-correlation window */
-#define DEFAULT_MIN_TRUSTED_LAG 4
-#define MAX_TRUSTED_LAG    60          /* matches Validity OEM max search lag 0x41 */
+#define DEFAULT_MIN_TRUSTED_LAG 8
+#define MAX_TRUSTED_LAG    245         /* longer: edge of the search range */
 #define RUN_GAP            120         /* trusted readings closer than this are one swipe */
 #define CONF_MIN           0.30        /* solo usa anclajes de velocidad limpios para interpolar */
-#define DEFAULT_LINE_DISTANCE 3.8      /* aux-to-main distance in pixels, calibrated */
+#define DEFAULT_LINE_DISTANCE 4.2      /* aux-to-main distance in pixels, calibrated */
 #define STILL_LAG          20          /* a resting finger repeats the line this many earlier */
 #define STILL_THRESHOLD    0.8
 #define HIGHPASS_BOX       9
@@ -388,6 +388,8 @@ typedef struct
   const double *aux;      /* unit aux rows */
   const double *hp;       /* high-passed main rows */
   int           n, lo, hi, a, b;
+  int           min_lag;
+  double        line_dist;
   double       *best;     /* per column offset: best correlation for lines lo..hi-1 */
   int          *best_lag; /* and the first lag that reached it */
   gint          next;     /* next column offset to take (atomic) */
@@ -408,8 +410,9 @@ lag_for_offset (const LagJob *j, int c0, double *best, int *best_lag, double *m,
       best_lag[t - j->lo] = 0;
     }
 
-  /* Con D = 3.8 px, buscar desde tau = 3 cubre barridos rápidos y naturales sin enganchar ruido */
-  int start_tau = 3;
+  /* Evita enganchar picos armónicos / crosstalk de crestas adyacentes en barridos reales */
+  int span = j->hi - j->lo;
+  int start_tau = (j->line_dist < 6.5 && span >= 600) ? CLAMP (span / 68, j->min_lag, 26) : 1;
 
   for (int tau = start_tau; tau <= MAX_LAG; tau++)
     {
@@ -488,7 +491,7 @@ estimate_lag (const double *lines, int n, int lo, int hi, int *lag, double *conf
     unit_row (aux_hp + (gsize) r * AUX_WIDTH, aux + (gsize) r * AUX_WIDTH, AUX_WIDTH);
 
   {
-    LagJob job = { aux, hp, n, lo, hi, a, b, NULL, NULL, 0 };
+    LagJob job = { aux, hp, n, lo, hi, a, b, vfs495_get_min_trusted_lag (), vfs495_get_line_distance (), NULL, NULL, 0 };
     const int n_offsets = C0_LAST - C0_FIRST + 1;
     const int n_threads = CLAMP ((int) g_get_num_processors (), 1, n_offsets);
     GThread *threads[C0_LAST - C0_FIRST + 1];
@@ -563,7 +566,7 @@ positions (const int *lag, const double *conf, const gboolean *still, int n, int
   g_autofree double *lagv = NULL;
   g_autofree double *smooth = NULL;
   g_autofree double *raw_lags = g_new (double, MAX (1, hi - lo));
-  int nok = 0, nraw = 0;
+  int nok = 0, nraw = 0, best_start = 0, best_len = 0, run_start = 0;
   int first, last;
   double *y;
 
@@ -584,8 +587,8 @@ positions (const int *lag, const double *conf, const gboolean *still, int n, int
     }
 
   double med_lag = median (raw_lags, nraw);
-  double lo_lag = MAX ((double) min_lag, 0.40 * med_lag);
-  double hi_lag = MIN ((double) MAX_TRUSTED_LAG, 2.20 * med_lag);
+  double lo_lag = MAX ((double) min_lag, 0.35 * med_lag);
+  double hi_lag = MIN ((double) MAX_TRUSTED_LAG, 2.50 * med_lag);
 
   for (int t = lo; t < hi; t++)
     {
@@ -599,27 +602,43 @@ positions (const int *lag, const double *conf, const gboolean *still, int n, int
       g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_FAILED, "no usable motion in this swipe");
       return NULL;
     }
-
-  okx = g_new (double, nok);
-  lagv = g_new (double, nok);
-  smooth = g_new (double, nok);
-  for (int i = 0; i < nok; i++)
+  /* longest run allowing gaps up to RUN_GAP (ties: first run, like numpy.argmax) */
+  for (int i = 1; i <= nok; i++)
+    if (i == nok || ok[i] - ok[i - 1] > RUN_GAP)
+      {
+        if (i - run_start - 1 > best_len - 1)
+          {
+            best_start = run_start;
+            best_len = i - run_start;
+          }
+        run_start = i;
+      }
+  if (best_len < 10)
     {
-      okx[i] = ok[i];
-      lagv[i] = lag[ok[i]];
+      g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_FAILED, "no usable motion in this swipe");
+      return NULL;
     }
-  int win_size = MIN (61, (nok % 2 == 0) ? nok - 1 : nok);
+
+  okx = g_new (double, best_len);
+  lagv = g_new (double, best_len);
+  smooth = g_new (double, best_len);
+  for (int i = 0; i < best_len; i++)
+    {
+      okx[i] = ok[best_start + i];
+      lagv[i] = lag[ok[best_start + i]];
+    }
+  int win_size = MIN (61, (best_len % 2 == 0) ? best_len - 1 : best_len);
   if (win_size < 3)
     win_size = 3;
-  median_filter (lagv, smooth, nok, win_size);
+  median_filter (lagv, smooth, best_len, win_size);
 
   first = MAX (lo, (int) (okx[0] - smooth[0]));
-  last = MIN (hi, (int) (okx[nok - 1] + smooth[nok - 1]) + 1);
+  last = MIN (hi, (int) (okx[best_len - 1] + smooth[best_len - 1]) + 1);
   y = g_new (double, last - first);
   y[0] = 0;
   for (int t = first; t < last - 1; t++)
     {
-      double speed = still[t] ? 0.0 : line_dist / interp (t, okx, smooth, nok);
+      double speed = still[t] ? 0.0 : line_dist / interp (t, okx, smooth, best_len);
       y[t - first + 1] = y[t - first] + speed;
     }
   *first_out = first;
